@@ -140,7 +140,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(4rem,15vw,8.5rem);
 .steppill{display:flex;gap:6px}
 .steppill span{font-size:.72rem;font-weight:800;padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:var(--glass);color:var(--muted)}
 .steppill span.on{background:#fff;color:var(--night)}
-.toast{position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 230px);background:#fff;color:var(--night);font-weight:700;border-radius:14px;padding:10px 16px;font-size:.9rem;box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:calc(100% - 32px);text-align:center}
+.toast{position:absolute;z-index:50;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 230px);background:#fff;color:var(--night);font-weight:700;border-radius:14px;padding:10px 16px;font-size:.9rem;box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:calc(100% - 32px);text-align:center}
 
 /* explain sheet */
 .sheet{position:absolute;z-index:25;left:0;right:0;bottom:0;max-height:82%;overflow:auto;background:linear-gradient(180deg,#171a35,#0d0f22);border-radius:24px 24px 0 0;border-top:1px solid var(--line);
@@ -179,6 +179,24 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(4rem,15vw,8.5rem);
   .recb i{animation:blink 1s steps(2) infinite}
   .flames{animation:flick 1.4s ease-in-out infinite alternate}
 }
+/* real camera + review */
+.live{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.mirror{transform:scaleX(-1)}
+video.mirror.shake{animation-name:shakem}
+.cam.haslive .scene{background:transparent!important}
+.cam.haslive .snow{opacity:.85}
+.review{position:absolute;inset:0;z-index:40;background:#000;display:flex;flex-direction:column}
+.rstage{position:relative;flex:1;overflow:hidden}
+.rstage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.rhalf{position:absolute;inset:0}
+.rstage .scene{background:transparent}
+.puff{position:absolute;inset:0;display:grid;place-items:center;font-size:9rem;z-index:6;pointer-events:none;filter:drop-shadow(0 0 30px #fff)}
+.rnote{position:absolute;z-index:7;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);border-radius:12px;padding:6px 12px;font-size:.82rem;text-align:center;max-width:calc(100% - 32px)}
+.rbar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;background:#0b0d1d;border-top:1px solid var(--line);
+  padding:14px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px))}
+.rbar button{padding:12px 16px;border-radius:14px;font-weight:800;font-size:.95rem;background:var(--hall);border:1px solid var(--line)}
+.rbar .pri{background:linear-gradient(160deg,var(--a),var(--b));border-color:transparent}
+@keyframes shakem{0%,100%{transform:scaleX(-1) translate(0,0)}25%{transform:scaleX(-1) translate(-4px,2px)}50%{transform:scaleX(-1) translate(3px,-3px)}75%{transform:scaleX(-1) translate(-2px,-1px)}}
 @keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(-4px,2px)}50%{transform:translate(3px,-3px)}75%{transform:translate(-2px,-1px)}}
 @keyframes wind{to{background-position:-260px 0}}
 @keyframes fly{from{transform:translateX(0) rotate(0)}to{transform:translateX(-120vw) rotate(720deg)}}
@@ -209,6 +227,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(4rem,15vw,8.5rem);
 </main>
 
 <div class="cam" id="cam" hidden>
+  <video class="live" id="live" playsinline muted autoplay hidden></video>
   <div class="scene" id="scene"></div>
   <div class="scrim t"></div><div class="scrim b"></div>
   <div class="corners"></div>
@@ -231,6 +250,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(4rem,15vw,8.5rem);
   </div>
   <div class="toast" id="toast" hidden></div>
   <div class="sheet" id="sheet" hidden></div>
+  <div class="review" id="review" hidden></div>
 </div>
 
 <script>
@@ -299,7 +319,7 @@ const FX=["green","vanish","clone","powers","time"],DIS=["quake","flood","avalan
 const SOON=[["🛸","פלישת חייזרים"],["✈️","מטוס מתרסק"],["🪵","גזעים מתגלגלים"],["🌧️","גשם"],["🕳️","בור באדמה"],["🐊","תנין"],["🪨","סלע ענק"]];
 const SECT={fx:["אפקטים","5 טריקים קלאסיים מהקולנוע"],dis:["אסונות","אסון הוליוודי, בלי שאף אחד ייפגע"],soon:["אורחים בסצנה","בקרוב: דברים שנכנסים לפריים שלכם"]};
 
-let st={tab:"fx",eff:null,opt:0,angle:0,step:1,rec:false,t:0,earned:{green:3,vanish:2,powers:2}};
+let st={tab:"fx",eff:null,opt:0,angle:0,step:1,rec:false,t:0,live:false,earned:{}};
 const $=s=>document.querySelector(s);
 const total=()=>Object.values(st.earned).reduce((a,b)=>a+b,0);
 const stub=on=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2.5a2.5 2.5 0 0 0 0 5V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2.5a2.5 2.5 0 0 0 0-5z" fill="${on?'#ffc83d':'none'}" stroke="${on?'#ffc83d':'rgba(255,255,255,.55)'}" stroke-width="1.6"/>${on?'<path d="M9 9.5l2 2 4-4" stroke="#7a4b00" stroke-width="1.8" fill="none" transform="translate(0 2)"/>':''}</svg>`;
@@ -349,48 +369,57 @@ function powerFx(hands,o,c){
     s+=`<circle cx="${cx}" cy="${cy}" r="30" fill="${c}" opacity=".35"/><circle cx="${cx}" cy="${cy}" r="30" fill="none" stroke="#fff" stroke-width="2"/><circle cx="${cx-10}" cy="${cy-10}" r="7" fill="#fff" opacity=".7"/>`}
   return `<g style="filter:drop-shadow(0 0 8px ${c})">${s}</g>`;
 }
-function scene(){
-  const k=st.eff,e=E[k],int=[.35,.7,1][st.opt]??1,sc=$("#scene");
-  sc.className="scene";sc.style.background="";sc.style.setProperty("--int",int);
+/* mode: "demo" = drawn sketch (no camera), "live" = over the real camera, "review" = over the playback */
+function layers(k,mode){
+  const demo=mode==="demo",kid=(x,o)=>demo?kidSvg(x,o):"";
   let h="";
   if(k==="green"){
-    const bgs=[
-      "radial-gradient(1.5px 1.5px at 12% 22%,#fff,transparent),radial-gradient(1px 1px at 30% 60%,#fff,transparent),radial-gradient(1.5px 1.5px at 55% 18%,#fff,transparent),radial-gradient(1px 1px at 80% 40%,#fff,transparent),radial-gradient(1.5px 1.5px at 90% 75%,#fff,transparent),radial-gradient(1px 1px at 40% 85%,#fff,transparent),radial-gradient(60% 50% at 70% 30%,rgba(123,47,247,.45),transparent),#04051a",
-      "radial-gradient(30% 40% at 10% 30%,#1f7a3a,transparent 70%),radial-gradient(30% 45% at 90% 35%,#145c2b,transparent 70%),radial-gradient(40% 30% at 50% 0%,rgba(255,240,150,.5),transparent),linear-gradient(180deg,#0f4d2c,#1f6b3a 60%,#3b2a14)",
-      "linear-gradient(180deg,#ff9e5e 0,#f4845f 40%,#f6c177 63%,#d8a24e 63%,#b98238 100%)"];
-    sc.style.background=bgs[st.opt];
-    if(st.opt===0)h+=`<div class="planet" style="width:120px;height:120px;right:10%;top:22%"></div>`;
-    if(st.opt===2)h+=`<div class="pyr" style="width:220px;height:150px;left:6%"></div><div class="pyr" style="width:150px;height:100px;right:4%"></div>`;
-    h+=kidSvg(50);
+    if(demo){
+      if(st.opt===0)h+=`<div class="planet" style="width:120px;height:120px;right:10%;top:22%"></div>`;
+      if(st.opt===2)h+=`<div class="pyr" style="width:220px;height:150px;left:6%"></div><div class="pyr" style="width:150px;height:100px;right:4%"></div>`;
+    }
+    h+=kid(50);
   }else if(k==="vanish"){
-    h+=st.step===1?kidSvg(50):kidSvg(50,{ghost:true});
+    h+=st.step===1?kid(50):kid(50,{ghost:true});
   }else if(k==="clone"){
-    h+=`<div class="dimhalf" style="${st.step===1?'left:0':'right:0'}"></div><div class="midline"></div>`;
-    h+=st.step===1?kidSvg(74):kidSvg(74,{ghost:true})+kidSvg(26);
+    if(mode!=="review")h+=`<div class="dimhalf" style="${st.step===1?'left:0':'right:0'}"></div><div class="midline"></div>`;
+    h+=demo?(st.step===1?kidSvg(74):kidSvg(74,{ghost:true})+kidSvg(26)):"";
   }else if(k==="powers"){
-    const p=POWERS[st.opt];
-    if(st.angle===0){const hands=[2,4,5].includes(st.opt)||st.opt===1?[[-14,72],[114,72]]:[[114,72]];
-      const arms=hands.map(([x,y])=>[x<50?22:78,112,x,y]);
-      h+=kidSvg(50,{arms,extra:powerFx(hands,st.opt,p[3])});
-    }else{h+=kidSvg(38,{side:true,arms:[[56,112,120,96]],extra:powerFx([[120,96]],st.opt,p[3])});}
+    if(demo){const p=POWERS[st.opt];
+      if(st.angle===0){const hands=[2,4,5].includes(st.opt)||st.opt===1?[[-14,72],[114,72]]:[[114,72]];
+        const arms=hands.map(([x,y])=>[x<50?22:78,112,x,y]);
+        h+=kidSvg(50,{arms,extra:powerFx(hands,st.opt,p[3])});
+      }else{h+=kidSvg(38,{side:true,arms:[[56,112,120,96]],extra:powerFx([[120,96]],st.opt,p[3])});}}
   }else if(k==="time"){
-    h+=`<div class="badge">${["×0.5","×2","⏪"][st.opt]}</div>`+kidSvg(50,{lift:12});
+    h+=`<div class="badge">${["×0.5","×2","⏪"][st.opt]}</div>`+kid(50,{lift:12});
   }else if(k==="quake"){
-    sc.classList.add("shake");
-    h+=`<svg class="crack" viewBox="0 0 400 60" preserveAspectRatio="none"><polyline points="0,30 60,24 90,40 140,18 180,36 230,22 270,44 320,20 360,34 400,26" fill="none" stroke="#0a0a0a" stroke-width="6"/><polyline points="0,30 60,24 90,40 140,18 180,36 230,22 270,44 320,20 360,34 400,26" fill="none" stroke="#ffb347" stroke-width="1.5" opacity=".7"/></svg>`+kidSvg(50);
+    h+=`<svg class="crack" viewBox="0 0 400 60" preserveAspectRatio="none"><polyline points="0,30 60,24 90,40 140,18 180,36 230,22 270,44 320,20 360,34 400,26" fill="none" stroke="#0a0a0a" stroke-width="6"/><polyline points="0,30 60,24 90,40 140,18 180,36 230,22 270,44 320,20 360,34 400,26" fill="none" stroke="#ffb347" stroke-width="1.5" opacity=".7"/></svg>`+kid(50);
   }else if(k==="flood"){
-    h+=kidSvg(50,{arms:[[22,112,4,52],[78,112,96,52]]})+`<div class="water"><svg viewBox="0 0 400 24" preserveAspectRatio="none"><path d="M0 24V12c25-12 50 12 75 0s50 12 75 0 50 12 75 0 50 12 75 0 50 12 100 0V24z" fill="rgba(80,200,255,.55)"/></svg></div>`;
+    h+=kid(50,{arms:[[22,112,4,52],[78,112,96,52]]})+`<div class="water"><svg viewBox="0 0 400 24" preserveAspectRatio="none"><path d="M0 24V12c25-12 50 12 75 0s50 12 75 0 50 12 75 0 50 12 75 0 50 12 100 0V24z" fill="rgba(80,200,255,.55)"/></svg></div>`;
   }else if(k==="avalanche"){
-    sc.style.background="linear-gradient(180deg,#9fb6d9 0%,#d9e4f5 60%,#eef3fb 60%,#c9d6ea 100%)";
-    h+=`<div class="snow"></div>`+kidSvg(55);
+    h+=`<div class="snow"></div>`+kid(55);
   }else if(k==="storm"){
-    sc.style.background="linear-gradient(180deg,#3a3f5c 0%,#2a2e45 63%,#1c1f32 63%,#14172a 100%)";
-    h+=`<div class="streaks"></div>`+[18,40,62].map((t,i)=>`<div class="leaf" style="top:${t}%;left:${100+i*20}%;animation-delay:${i*.6}s"></div>`).join("")+kidSvg(52,{arms:[[22,112,-6,96],[78,112,100,80]]});
+    h+=`<div class="streaks"></div>`+[18,40,62].map((t,i)=>`<div class="leaf" style="top:${t}%;left:${100+i*20}%;animation-delay:${i*.6}s"></div>`).join("")+kid(52,{arms:[[22,112,-6,96],[78,112,100,80]]});
   }else if(k==="fire"){
-    sc.style.background="linear-gradient(180deg,#3b1d1d 0%,#2a1717 63%,#1b0f0f 63%,#120a0a 100%)";
-    h+=`<div class="flames"></div>`+kidSvg(50);
+    h+=`<div class="flames"></div>`+kid(50);
   }
-  sc.innerHTML=h;
+  return h;
+}
+const SCENE_BG={
+  green:["radial-gradient(1.5px 1.5px at 12% 22%,#fff,transparent),radial-gradient(1px 1px at 30% 60%,#fff,transparent),radial-gradient(1.5px 1.5px at 55% 18%,#fff,transparent),radial-gradient(1px 1px at 80% 40%,#fff,transparent),radial-gradient(1.5px 1.5px at 90% 75%,#fff,transparent),radial-gradient(1px 1px at 40% 85%,#fff,transparent),radial-gradient(60% 50% at 70% 30%,rgba(123,47,247,.45),transparent),#04051a",
+    "radial-gradient(30% 40% at 10% 30%,#1f7a3a,transparent 70%),radial-gradient(30% 45% at 90% 35%,#145c2b,transparent 70%),radial-gradient(40% 30% at 50% 0%,rgba(255,240,150,.5),transparent),linear-gradient(180deg,#0f4d2c,#1f6b3a 60%,#3b2a14)",
+    "linear-gradient(180deg,#ff9e5e 0,#f4845f 40%,#f6c177 63%,#d8a24e 63%,#b98238 100%)"],
+  avalanche:"linear-gradient(180deg,#9fb6d9 0%,#d9e4f5 60%,#eef3fb 60%,#c9d6ea 100%)",
+  storm:"linear-gradient(180deg,#3a3f5c 0%,#2a2e45 63%,#1c1f32 63%,#14172a 100%)",
+  fire:"linear-gradient(180deg,#3b1d1d 0%,#2a1717 63%,#1b0f0f 63%,#120a0a 100%)"};
+const intensity=()=>[.35,.7,1][st.opt]??1;
+function scene(){
+  const k=st.eff,sc=$("#scene");
+  sc.className="scene";sc.style.background="";sc.style.setProperty("--int",intensity());
+  if(!st.live){const bg=SCENE_BG[k];if(bg)sc.style.background=Array.isArray(bg)?bg[st.opt]:bg}
+  sc.classList.toggle("shake",k==="quake");
+  $("#live").classList.toggle("shake",k==="quake");
+  sc.innerHTML=layers(k,st.live?"live":"demo");
 }
 
 /* ---------- camera chrome ---------- */
@@ -450,27 +479,138 @@ function sheet(open){
 
 let tTimer,rTimer;
 function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(tTimer);tTimer=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- real camera ---------- */
+const MAXSEC=30;
+let stream=null,facing="user",recorder=null,chunks=[],takes=[],urls=[],camReq=0;
+function stopStream(){
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  stream=null;st.live=false;$("#cam").classList.remove("haslive");
+  const v=$("#live");v.srcObject=null;v.hidden=true;
+}
+async function startCam(){
+  const my=++camReq;stopStream();
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){draw();toast("📷 אין כאן גישה למצלמה. מציגים הדגמה מצוירת.");return}
+  const vid={video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}}};
+  let s=null;
+  try{s=await navigator.mediaDevices.getUserMedia({...vid,audio:true})}
+  catch(e){try{s=await navigator.mediaDevices.getUserMedia(vid)}
+    catch(e2){if(my!==camReq)return;draw();toast(e2&&e2.name==="NotAllowedError"?"📷 לא אישרתם מצלמה. מציגים הדגמה מצוירת.":"📷 לא מצאנו מצלמה. מציגים הדגמה מצוירת.");return}}
+  if(my!==camReq||$("#cam").hidden){s.getTracks().forEach(t=>t.stop());return}
+  stream=s;st.live=true;
+  const v=$("#live");v.srcObject=s;v.classList.toggle("mirror",facing==="user");v.hidden=false;
+  try{await v.play()}catch(e){}
+  $("#cam").classList.add("haslive");draw();
+}
+function pickMime(){
+  for(const m of["video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9,opus","video/webm"])
+    if(MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(m))return m;
+  return "";
+}
 function setRec(on){
   st.rec=on;$("#rec").classList.toggle("on",on);$("#rec").setAttribute("aria-label",on?"עצירת צילום":"התחלת צילום");$("#recb").hidden=!on;
   clearInterval(rTimer);
-  if(on){st.t=0;$("#rtime").textContent="REC 00:00";rTimer=setInterval(()=>{st.t++;$("#rtime").textContent="REC 00:"+String(st.t).padStart(2,"0")},1000)}
+  const show=()=>$("#rtime").textContent=`REC ${String(Math.floor(st.t/60)).padStart(2,"0")}:${String(st.t%60).padStart(2,"0")}`;
+  if(on){st.t=0;show();rTimer=setInterval(()=>{st.t++;show();if(st.t>=MAXSEC){stopRec();toast(`⏱️ עד ${MAXSEC} שניות בכל טייק`)}},1000)}
 }
-$("#rec").onclick=()=>{
-  if(!st.rec){setRec(true);return}
-  setRec(false);
-  if(E[st.eff].two&&st.step===1){st.step=2;draw();toast("✓ טייק 1 נשמר. עכשיו טייק 2!")}
-  else toast("✓ הצילום מוכן! מסך התצוגה מגיע בשלב הבא");
-};
+function startRec(){
+  if(st.live&&window.MediaRecorder){
+    const mime=pickMime();
+    try{recorder=new MediaRecorder(stream,mime?{mimeType:mime}:{})}catch(e){recorder=new MediaRecorder(stream)}
+    chunks=[];
+    const r=recorder,mirror=facing==="user";
+    r.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    r.onstop=()=>{if(r.discard)return;takes.push({blob:new Blob(chunks,{type:r.mimeType||mime||"video/webm"}),mirror});afterTake()};
+    r.start(250);
+  }
+  setRec(true);
+}
+function stopRec(){
+  if(!st.rec)return;setRec(false);
+  if(recorder&&recorder.state!=="inactive"){recorder.stop();return} // afterTake runs when the file is ready
+  afterTake();
+}
+function discardRec(){
+  if(recorder&&recorder.state!=="inactive"){recorder.discard=true;recorder.stop()}
+  recorder=null;setRec(false);
+}
+function afterTake(){
+  recorder=null;
+  const e=E[st.eff];
+  if(e.two&&st.step===1){st.step=2;draw();toast("✓ טייק 1 נשמר. עכשיו טייק 2!");return}
+  if(takes.length>=(e.two?2:1))review();
+  else{takes=[];st.step=1;draw();toast("✓ בהדגמה אין צילום אמיתי. אשרו מצלמה כדי לצלם")}
+}
+$("#rec").onclick=()=>st.rec?stopRec():startRec();
 $("#how").onclick=()=>sheet(true);
-$("#flip").onclick=()=>toast("🔄 בסקיצה אין מצלמה אמיתית");
+$("#flip").onclick=()=>{
+  if(st.rec){toast("✋ קודם עוצרים את הצילום");return}
+  facing=facing==="user"?"environment":"user";startCam();
+};
 $("#back").onclick=closeCam;
 
-function openCam(k){
-  Object.assign(st,{eff:k,opt:0,angle:0,step:1});
-  $("#home").hidden=true;$("#cam").hidden=false;draw();sheet(true);
+/* ---------- tickets (saved on this device) ---------- */
+function loadEarned(){try{return JSON.parse(localStorage.getItem("kaboom-earned"))||{}}catch(e){return{}}}
+function earn(k){
+  const before=st.earned[k]||0;if(before>=3)return false;
+  st.earned[k]=before+1;try{localStorage.setItem("kaboom-earned",JSON.stringify(st.earned))}catch(e){}
+  return true;
 }
-function closeCam(){setRec(false);$("#cam").hidden=true;$("#home").hidden=false;sheet(false);home();window.scrollTo(0,0)}
+
+/* ---------- review: watch the result ---------- */
+const RNOTE={green:"🖼️ החלפת הרקע בעזרת AI מגיעה בשלב הבא",powers:"✋ הכוח שיוצא מהידיים מגיע בשלב הבא",
+  time:["🐢 הילוך איטי","🐇 הילוך מהיר","⏪ הרצה אחורה מגיעה בשלב הבא"]};
+function freeTakes(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];takes=[]}
+function review(){
+  const k=st.eff,e=E[k],rv=$("#review");
+  urls=takes.map(t=>URL.createObjectURL(t.blob));
+  const v=i=>`<video${takes[i].mirror?' class="mirror"':''} src="${urls[i]}" playsinline></video>`;
+  let stage;
+  if(k==="clone")stage=`<div class="rhalf" style="clip-path:inset(0 0 0 50%)">${v(0)}</div><div class="rhalf" style="clip-path:inset(0 50% 0 0)">${v(1)}</div>`;
+  else if(k==="vanish")stage=v(0)+v(1).replace("<video","<video hidden")+`<div class="puff" hidden>💨</div>`;
+  else stage=v(0);
+  let note=RNOTE[k];if(Array.isArray(note))note=note[st.opt];
+  stage+=`<div class="scene" style="--int:${intensity()}">${layers(k,"review")}</div>`+(note?`<div class="rnote">${note}</div>`:"");
+  rv.innerHTML=`<div class="rstage">${stage}</div>
+    <div class="rbar"><button class="pri" id="rplay">▶️ צפייה</button><button id="rsave">💾 שמירה</button><button id="ragain">🔁 טייק חדש</button><button id="rdone">✓ סיום</button></div>`;
+  rv.hidden=false;
+  if(k==="quake")rv.querySelectorAll("video").forEach(x=>x.classList.add("shake"));
+  if(k==="time"&&st.opt<2)rv.querySelectorAll("video").forEach(x=>{x.defaultPlaybackRate=x.playbackRate=st.opt===0?.5:2});
+  $("#rplay").onclick=playReview;$("#rsave").onclick=saveTakes;
+  $("#ragain").onclick=()=>{closeReview();st.step=1;draw()};
+  $("#rdone").onclick=closeCam;
+  if(earn(k))setTimeout(()=>toast(`🎟️ קיבלתם כרטיס פרמיירה! (${st.earned[k]} מתוך 3)`),400);
+  playReview();
+}
+function playReview(){
+  const vs=[...$("#review").querySelectorAll("video")],k=st.eff;
+  const go=x=>{x.currentTime=0;const p=x.play();if(p)p.catch(()=>{})};
+  if(k==="vanish"){
+    const [a,b]=vs,puff=$("#review .puff");
+    b.pause();b.hidden=true;a.hidden=false;puff.hidden=true;
+    a.onended=()=>{a.hidden=true;b.hidden=false;puff.hidden=false;go(b);setTimeout(()=>puff.hidden=true,700)};
+    go(a);
+  }else vs.forEach(go);
+}
+function closeReview(){const rv=$("#review");rv.querySelectorAll("video").forEach(x=>x.pause());rv.innerHTML="";rv.hidden=true;freeTakes()}
+async function saveTakes(){
+  const k=st.eff;
+  const files=takes.map((t,i)=>{const type=t.blob.type.split(";")[0]||"video/webm";
+    return new File([t.blob],`kaboom-${k}${takes.length>1?"-take"+(i+1):""}.${type.includes("mp4")?"mp4":"webm"}`,{type})});
+  if(navigator.canShare&&navigator.canShare({files})){
+    try{await navigator.share({files});return}catch(e){if(e&&e.name==="AbortError")return}
+  }
+  files.forEach(f=>{const a=document.createElement("a");a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)});
+  toast("💾 נשמר בתיקיית ההורדות");
+}
+
+function openCam(k){
+  Object.assign(st,{eff:k,opt:0,angle:0,step:1});freeTakes();
+  $("#home").hidden=true;$("#cam").hidden=false;draw();sheet(true);startCam();
+}
+function closeCam(){discardRec();camReq++;stopStream();closeReview();$("#cam").hidden=true;$("#home").hidden=false;sheet(false);home();window.scrollTo(0,0)}
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!$("#cam").hidden){$("#sheet").hidden?closeCam():sheet(false)}});
+st.earned=loadEarned();
 home();
 </script>
 
