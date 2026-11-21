@@ -183,7 +183,8 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(4rem,15vw,8.5rem);
 .live{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
 .mirror{transform:scaleX(-1)}
 video.mirror.shake{animation-name:shakem}
-.cam.haslive .scene{background:transparent!important}
+.cam.haslive .scene:not(.world){background:transparent!important}
+.person{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:3;pointer-events:none}
 .cam.haslive .snow{opacity:.85}
 .review{position:absolute;inset:0;z-index:40;background:#000;display:flex;flex-direction:column}
 .rstage{position:relative;flex:1;overflow:hidden}
@@ -229,6 +230,7 @@ video.mirror.shake{animation-name:shakem}
 <div class="cam" id="cam" hidden>
   <video class="live" id="live" playsinline muted autoplay hidden></video>
   <div class="scene" id="scene"></div>
+  <canvas class="person" id="person" hidden></canvas>
   <div class="scrim t"></div><div class="scrim b"></div>
   <div class="corners"></div>
   <div class="ctop">
@@ -374,7 +376,7 @@ function layers(k,mode){
   const demo=mode==="demo",kid=(x,o)=>demo?kidSvg(x,o):"";
   let h="";
   if(k==="green"){
-    if(demo){
+    if(demo||segmenter){
       if(st.opt===0)h+=`<div class="planet" style="width:120px;height:120px;right:10%;top:22%"></div>`;
       if(st.opt===2)h+=`<div class="pyr" style="width:220px;height:150px;left:6%"></div><div class="pyr" style="width:150px;height:100px;right:4%"></div>`;
     }
@@ -417,9 +419,70 @@ function scene(){
   const k=st.eff,sc=$("#scene");
   sc.className="scene";sc.style.background="";sc.style.setProperty("--int",intensity());
   if(!st.live){const bg=SCENE_BG[k];if(bg)sc.style.background=Array.isArray(bg)?bg[st.opt]:bg}
+  else if(k==="green"&&segmenter){sc.classList.add("world");sc.style.background=SCENE_BG.green[st.opt]}
   sc.classList.toggle("shake",k==="quake");
   $("#live").classList.toggle("shake",k==="quake");
   sc.innerHTML=layers(k,st.live?"live":"demo");
+}
+
+/* ---------- AI cutout: finds the kid in the picture, on this device ---------- */
+const SEG_FX=["green","fire","avalanche","storm"]; // effects that go behind the kid
+const MP="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const SEG_MODEL="https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+let segmenter=null,segLoading=null,segTok=0,segOn=null;
+function loadSeg(){
+  if(segLoading)return segLoading;
+  segLoading=(async()=>{
+    const {FilesetResolver,ImageSegmenter}=await import(MP+"/vision_bundle.mjs");
+    const files=await FilesetResolver.forVisionTasks(MP+"/wasm");
+    const mk=d=>ImageSegmenter.createFromOptions(files,{baseOptions:{modelAssetPath:SEG_MODEL,delegate:d},runningMode:"VIDEO",outputConfidenceMasks:true,outputCategoryMask:false});
+    try{segmenter=await mk("GPU")}catch(e){segmenter=await mk("CPU")}
+    return segmenter;
+  })().catch(e=>{segLoading=null;throw e});
+  return segLoading;
+}
+function stopCutout(){segTok++;segOn=null}
+function startCutout(video,canvas,who){
+  const tok=++segTok;segOn=who;
+  const inC=document.createElement("canvas"),inX=inC.getContext("2d");
+  const mC=document.createElement("canvas"),mX=mC.getContext("2d");
+  const pX=canvas.getContext("2d");
+  let last=-1,mImg=null;
+  const step=()=>{
+    if(tok!==segTok)return;
+    requestAnimationFrame(step);
+    if(!segmenter||video.readyState<2||!video.videoWidth||video.currentTime===last)return;
+    last=video.currentTime;
+    const vw=video.videoWidth,vh=video.videoHeight,sw=256,sh=Math.max(1,Math.round(256*vh/vw));
+    if(inC.width!==sw||inC.height!==sh){inC.width=sw;inC.height=sh}
+    const pw=Math.min(960,vw),ph=Math.round(pw*vh/vw);
+    if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph}
+    inX.drawImage(video,0,0,sw,sh);
+    try{segmenter.segmentForVideo(inC,performance.now(),res=>{
+      const m=res.confidenceMasks&&res.confidenceMasks[0];if(!m)return;
+      const w=m.width,h=m.height,a=m.getAsFloat32Array();
+      if(mC.width!==w||mC.height!==h||!mImg){mC.width=w;mC.height=h;mImg=mX.createImageData(w,h)}
+      const d=mImg.data;
+      for(let i=0;i<a.length;i++){const v=(a[i]-.3)*2.5;d[i*4+3]=v<=0?0:v>=1?255:v*255}
+      mX.putImageData(mImg,0,0);
+      pX.globalCompositeOperation="copy";pX.drawImage(video,0,0,pw,ph);
+      pX.globalCompositeOperation="destination-in";pX.drawImage(mC,0,0,pw,ph);
+      pX.globalCompositeOperation="source-over";
+    })}catch(e){}
+  };
+  requestAnimationFrame(step);
+}
+function syncSeg(){
+  const pc=$("#person"),want=st.live&&SEG_FX.includes(st.eff)&&$("#review").hidden&&!$("#cam").hidden;
+  pc.classList.toggle("mirror",facing==="user");
+  if(!want){if(segOn==="live")stopCutout();pc.hidden=true;return}
+  if(segOn==="live")return;
+  if(!segmenter){
+    if(!segLoading)toast("🤖 מעירים את ה-AI… רגע אחד");
+    loadSeg().then(()=>{if(!$("#cam").hidden)draw()}).catch(()=>toast("🤖 ה-AI לא נטען. בדקו את החיבור לאינטרנט"));
+    return;
+  }
+  pc.hidden=false;startCutout($("#live"),pc,"live");
 }
 
 /* ---------- camera chrome ---------- */
@@ -461,7 +524,7 @@ function chrome(){
     st.opt=x;draw()});
   $("#extra").querySelectorAll("[data-angle]").forEach(b=>b.onclick=()=>{st.angle=+b.dataset.angle;draw()});
 }
-function draw(){scene();chrome()}
+function draw(){scene();chrome();syncSeg()}
 
 function sheet(open){
   const e=E[st.eff],sh=$("#sheet");
@@ -569,8 +632,13 @@ function review(){
   if(k==="clone")stage=`<div class="rhalf" style="clip-path:inset(0 0 0 50%)">${v(0)}</div><div class="rhalf" style="clip-path:inset(0 50% 0 0)">${v(1)}</div>`;
   else if(k==="vanish")stage=v(0)+v(1).replace("<video","<video hidden")+`<div class="puff" hidden>💨</div>`;
   else stage=v(0);
-  let note=RNOTE[k];if(Array.isArray(note))note=note[st.opt];
-  stage+=`<div class="scene" style="--int:${intensity()}">${layers(k,"review")}</div>`+(note?`<div class="rnote">${note}</div>`:"");
+  const seg=SEG_FX.includes(k)&&segmenter;
+  let note=RNOTE[k];if(Array.isArray(note))note=note[st.opt];if(k==="green"&&seg)note="";
+  const world=k==="green"&&seg?`background:${SCENE_BG.green[st.opt]};`:"";
+  stage+=`<div class="scene" style="${world}--int:${intensity()}">${layers(k,"review")}</div>`
+    +(seg?`<canvas class="person${takes[0].mirror?' mirror':''}" id="rperson"></canvas>`:"")
+    +(note?`<div class="rnote">${note}</div>`:"");
+  stopCutout();$("#person").hidden=true;
   rv.innerHTML=`<div class="rstage">${stage}</div>
     <div class="rbar"><button class="pri" id="rplay">▶️ צפייה</button><button id="rsave">💾 שמירה</button><button id="ragain">🔁 טייק חדש</button><button id="rdone">✓ סיום</button></div>`;
   rv.hidden=false;
@@ -579,6 +647,7 @@ function review(){
   $("#rplay").onclick=playReview;$("#rsave").onclick=saveTakes;
   $("#ragain").onclick=()=>{closeReview();st.step=1;draw()};
   $("#rdone").onclick=closeCam;
+  if(seg)startCutout(rv.querySelector("video"),$("#rperson"),"review");
   if(earn(k))setTimeout(()=>toast(`🎟️ קיבלתם כרטיס פרמיירה! (${st.earned[k]} מתוך 3)`),400);
   playReview();
 }
@@ -592,7 +661,7 @@ function playReview(){
     go(a);
   }else vs.forEach(go);
 }
-function closeReview(){const rv=$("#review");rv.querySelectorAll("video").forEach(x=>x.pause());rv.innerHTML="";rv.hidden=true;freeTakes()}
+function closeReview(){if(segOn==="review")stopCutout();const rv=$("#review");rv.querySelectorAll("video").forEach(x=>x.pause());rv.innerHTML="";rv.hidden=true;freeTakes()}
 async function saveTakes(){
   const k=st.eff;
   const files=takes.map((t,i)=>{const type=t.blob.type.split(";")[0]||"video/webm";
@@ -608,7 +677,7 @@ function openCam(k){
   Object.assign(st,{eff:k,opt:0,angle:0,step:1});freeTakes();
   $("#home").hidden=true;$("#cam").hidden=false;draw();sheet(true);startCam();
 }
-function closeCam(){discardRec();camReq++;stopStream();closeReview();$("#cam").hidden=true;$("#home").hidden=false;sheet(false);home();window.scrollTo(0,0)}
+function closeCam(){discardRec();camReq++;stopStream();closeReview();stopCutout();$("#person").hidden=true;$("#cam").hidden=true;$("#home").hidden=false;sheet(false);home();window.scrollTo(0,0)}
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&!$("#cam").hidden){$("#sheet").hidden?closeCam():sheet(false)}});
 st.earned=loadEarned();
 home();
